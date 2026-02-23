@@ -2,7 +2,8 @@
   import { outputCards, clearResults } from "../lib/stores/results";
   import { imageQueue, regionMap, currentIndex } from "../lib/stores/images";
   import ResultCard from "../components/Output/ResultCard.svelte";
-
+  import { save } from "@tauri-apps/plugin-dialog";
+  import { writeTextFile } from "@tauri-apps/plugin-fs";
   export let onBack: () => void;
 
   function startOver() {
@@ -13,7 +14,13 @@
     onBack();
   }
 
-  function saveAsText() {
+  async function saveAsText() {
+    const path = await save({
+      filters: [{ name: "Text", extensions: ["txt"] }],
+      defaultPath: "ocr-results.txt",
+    });
+    if (!path) return; // user cancelled
+
     const lines: string[] = [];
     for (const card of $outputCards) {
       lines.push(`=== ${card.imageName} ===`);
@@ -31,16 +38,16 @@
       lines.push("");
     }
 
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ocr-results.txt";
-    a.click();
-    URL.revokeObjectURL(url);
+    await writeTextFile(path, lines.join("\n"));
   }
 
-  function saveAsCsv() {
+  async function saveAsCsv() {
+    const path = await save({
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+      defaultPath: "ocr-results.csv",
+    });
+    if (!path) return; // user cancelled
+
     const lines: string[] = [];
     for (const card of $outputCards) {
       lines.push(`"${card.imageName}"`);
@@ -62,13 +69,7 @@
       }
     }
 
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ocr-results.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    await writeTextFile(path, lines.join("\n"));
   }
 </script>
 
