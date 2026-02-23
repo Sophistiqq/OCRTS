@@ -1,5 +1,5 @@
 use crate::commands::image::ImageStore;
-use image::{DynamicImage, GenericImageView, ImageReader};
+use image::{GenericImageView, ImageReader};
 use ocrs::{ImageSource, OcrEngine, OcrEngineParams};
 use rten::Model;
 use serde::{Deserialize, Serialize};
