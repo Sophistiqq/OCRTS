@@ -12,7 +12,6 @@
   import { addCard } from "../lib/stores/results";
   import { processRegion } from "../lib/tauri";
   import type { Region, OutputCard } from "../lib/types";
-  import { get } from "svelte/store";
 
   export let onBack: () => void;
   export let onFinish: () => void;
@@ -51,6 +50,9 @@
 
     processing = true;
     processingError = null;
+
+    // Force browser to paint the spinner before blocking work starts
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
     try {
       const results = await Promise.all(
@@ -129,6 +131,21 @@
 
   <!-- Main area -->
   <div class="workspace">
+    <!-- Processing overlay -->
+    {#if processing}
+      <div class="overlay">
+        <div class="spinner-wrap">
+          <div class="spinner" />
+          <p class="spinner-label">
+            Running OCR on {regions.length} region{regions.length > 1
+              ? "s"
+              : ""}…
+          </p>
+          <p class="spinner-sub">This may take a few seconds</p>
+        </div>
+      </div>
+    {/if}
+
     <div class="canvas-area">
       {#if image}
         {#key image.id}
@@ -275,6 +292,7 @@
     display: flex;
     flex: 1;
     overflow: hidden;
+    position: relative; /* needed for overlay positioning */
   }
   .canvas-area {
     flex: 1;
@@ -298,5 +316,46 @@
   }
   .hint strong {
     color: #7c9ef8;
+  }
+  /* Overlay */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    backdrop-filter: blur(2px);
+  }
+  .spinner-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #2a2a2a;
+    border-top-color: #7c9ef8;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .spinner-label {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #ddd;
+    margin: 0;
+  }
+  .spinner-sub {
+    font-size: 0.78rem;
+    color: #666;
+    margin: 0;
   }
 </style>
