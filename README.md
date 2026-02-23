@@ -1,47 +1,40 @@
-# Svelte + TS + Vite
+# OCR Sheet
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+A focused desktop tool for extracting text from printed spreadsheets and tables — no accounts, no trials, no fluff.
 
-## Recommended IDE Setup
+## What it does
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+Most OCR apps are bloated, paywalled, or require too many steps. OCR Sheet does one thing: takes a photo or scan of a printed Excel sheet and pulls the text out of it, column-aware even when there are no visible borders.
 
-## Need an official Svelte framework?
+**The flow:**
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+1. Drop one or more images into the app
+2. Draw rectangles over the regions you want to extract
+3. Hit Process — OCR runs locally on your machine, nothing leaves your device
+4. Copy the results or save as `.txt` or `.csv`
 
-## Technical considerations
+Multiple images are handled one by one, each producing its own result card in the output view.
 
-**Why use this over SvelteKit?**
+## Install
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+Download the latest `.exe` from the [Releases](../../releases) page and run it. Windows will show a SmartScreen warning since the app is unsigned — click **More info → Run anyway**.
 
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+No installation of additional software required. The OCR engine is bundled inside the app.
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+## Tech stack
 
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
+| Layer | Technology |
+|---|---|
+| App shell | Tauri v2 |
+| Frontend | Svelte + TypeScript + Vite |
+| Backend | Rust |
+| OCR engine | ocrs (neural network, runs fully offline) |
+| Image processing | image-rs |
 
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
+The Rust backend handles all the heavy work — loading images, cropping selected regions, running OCR, and detecting column structure from whitespace patterns. The Svelte frontend handles the UI, the canvas-based region selector, and the output cards.
 
-**Why include `.vscode/extensions.json`?**
+## Notes
 
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
-
-**Why enable `allowJs` in the TS template?**
-
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
-
-```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
-```
+- Works best on clean, high-resolution scans. Photos taken at an angle or with poor lighting will reduce accuracy.
+- Column detection uses whitespace gap analysis — it works well for standard spreadsheet layouts but may not perfectly reconstruct complex merged cell structures.
+- All processing is local. No network requests are made during OCR.
