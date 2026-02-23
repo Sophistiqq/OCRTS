@@ -33,6 +33,7 @@
     <div class="table-wrap">
       <table>
         {#each result.columns as row}
+          <!-- svelte-ignore node_invalid_placement_ssr -->
           <tr>
             {#each Array(columnCount) as _, ci}
               <td>{row[ci] ?? ""}</td>

@@ -135,7 +135,7 @@
     {#if processing}
       <div class="overlay">
         <div class="spinner-wrap">
-          <div class="spinner" />
+          <div class="spinner"></div>
           <p class="spinner-label">
             Running OCR on {regions.length} region{regions.length > 1
               ? "s"

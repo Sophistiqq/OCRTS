@@ -24,8 +24,7 @@ log = "0.4"
 tauri = { version = "2.10.0", features = [] }
 tauri-plugin-log = "2"
 image = "0.25"
-ocrs = "0.7"
-rten = "0.9"
+leptess = "0.14"
 base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["full"] }
