@@ -28,13 +28,13 @@ jobs:
 
       - name: Install Tesseract and Leptonica via vcpkg
         run: |
-          vcpkg install tesseract:x64-windows-static leptonica:x64-windows-static
+          vcpkg install tesseract:x64-windows-static-md leptonica:x64-windows-static-md
           echo "VCPKG_ROOT=C:/vcpkg" >> $env:GITHUB_ENV
-          echo "LEPTONICA_INCLUDE_PATH=C:/vcpkg/installed/x64-windows-static/include" >> $env:GITHUB_ENV
-          echo "LEPTONICA_LINK_PATHS=C:/vcpkg/installed/x64-windows-static/lib" >> $env:GITHUB_ENV
+          echo "LEPTONICA_INCLUDE_PATH=C:/vcpkg/installed/x64-windows-static-md/include" >> $env:GITHUB_ENV
+          echo "LEPTONICA_LINK_PATHS=C:/vcpkg/installed/x64-windows-static-md/lib" >> $env:GITHUB_ENV
           echo "LEPTONICA_LINK_LIBS=leptonica" >> $env:GITHUB_ENV
-          echo "TESSERACT_INCLUDE_PATH=C:/vcpkg/installed/x64-windows-static/include" >> $env:GITHUB_ENV
-          echo "TESSERACT_LINK_PATHS=C:/vcpkg/installed/x64-windows-static/lib" >> $env:GITHUB_ENV
+          echo "TESSERACT_INCLUDE_PATH=C:/vcpkg/installed/x64-windows-static-md/include" >> $env:GITHUB_ENV
+          echo "TESSERACT_LINK_PATHS=C:/vcpkg/installed/x64-windows-static-md/lib" >> $env:GITHUB_ENV
           echo "TESSERACT_LINK_LIBS=tesseract" >> $env:GITHUB_ENV
 
       - name: Install frontend deps
