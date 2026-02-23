@@ -26,6 +26,17 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Install Tesseract and Leptonica via vcpkg
+        run: |
+          vcpkg install tesseract:x64-windows-static leptonica:x64-windows-static
+          echo "VCPKG_ROOT=C:/vcpkg" >> $env:GITHUB_ENV
+          echo "LEPTONICA_INCLUDE_PATH=C:/vcpkg/installed/x64-windows-static/include" >> $env:GITHUB_ENV
+          echo "LEPTONICA_LINK_PATHS=C:/vcpkg/installed/x64-windows-static/lib" >> $env:GITHUB_ENV
+          echo "LEPTONICA_LINK_LIBS=leptonica" >> $env:GITHUB_ENV
+          echo "TESSERACT_INCLUDE_PATH=C:/vcpkg/installed/x64-windows-static/include" >> $env:GITHUB_ENV
+          echo "TESSERACT_LINK_PATHS=C:/vcpkg/installed/x64-windows-static/lib" >> $env:GITHUB_ENV
+          echo "TESSERACT_LINK_LIBS=tesseract" >> $env:GITHUB_ENV
+
       - name: Install frontend deps
         run: npm install
 
@@ -33,6 +44,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VCPKG_ROOT: C:/vcpkg
         with:
           tauriScript: npx tauri
           args: --target x86_64-pc-windows-msvc
