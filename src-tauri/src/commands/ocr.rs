@@ -181,10 +181,33 @@ pub async fn process_region(
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
         let exe_dir = exe.parent().ok_or("no exe dir")?.to_path_buf();
         let bundled = exe_dir.join("tessdata");
+
+        // Log what we're seeing for debugging
+        eprintln!("exe: {:?}", exe);
+        eprintln!("exe_dir: {:?}", exe_dir);
+        eprintln!("bundled tessdata path: {:?}", bundled);
+        eprintln!("bundled exists: {}", bundled.exists());
+
         if bundled.exists() {
             Some(bundled.to_string_lossy().to_string())
         } else {
-            None // let Tesseract find system tessdata on Linux
+            // Try one level up (some Tauri versions put resources alongside the exe differently)
+            let parent_bundled = exe_dir.parent().map(|p| p.join("tessdata"));
+            eprintln!("parent tessdata: {:?}", parent_bundled);
+            eprintln!(
+                "parent exists: {}",
+                parent_bundled.as_ref().map(|p| p.exists()).unwrap_or(false)
+            );
+
+            if let Some(p) = parent_bundled {
+                if p.exists() {
+                    Some(p.to_string_lossy().to_string())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         }
     };
 
