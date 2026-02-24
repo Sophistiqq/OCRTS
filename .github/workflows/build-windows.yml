@@ -40,15 +40,23 @@ jobs:
         run: |
           $libDir = "C:/vcpkg/installed/x64-windows-static-md/lib"
           $src = Get-ChildItem "$libDir/leptonica-*.lib" | Select-Object -First 1
-          Copy-Item $src.FullName "$libDir/leptonica.lib"
-          Write-Host "Copied $($src.Name) to leptonica.lib"
+          if ($src) {
+            Copy-Item $src.FullName "$libDir/leptonica.lib" -Force
+            Write-Host "Copied $($src.Name) to leptonica.lib"
+            } else {
+              Write-Host "leptonica.lib already exists, skipping"
+              }
 
       - name: Fix tesseract lib name
         run: |
           $libDir = "C:/vcpkg/installed/x64-windows-static-md/lib"
-          $src = Get-ChildItem "$libDir/tesseract*.lib" | Select-Object -First 1
-          Copy-Item $src.FullName "$libDir/tesseract.lib"
-          Write-Host "Copied $($src.Name) to tesseract.lib"
+          $src = Get-ChildItem "$libDir/tesseract*.lib" | Where-Object { $_.Name -ne "tesseract.lib" } | Select-Object -First 1
+          if ($src) {
+            Copy-Item $src.FullName "$libDir/tesseract.lib" -Force
+            Write-Host "Copied $($src.Name) to tesseract.lib"
+            } else {
+              Write-Host "tesseract.lib already exists, skipping"
+              }
 
       - name: Download Tesseract language data
         run: |
