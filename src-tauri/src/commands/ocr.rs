@@ -176,6 +176,18 @@ pub async fn process_region(
     region: RegionInput,
     store: State<'_, ImageStore>,
 ) -> Result<RegionResult, String> {
+    // Resolve tessdata path before entering the blocking thread
+    let tessdata_path = {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_dir = exe.parent().ok_or("no exe dir")?.to_path_buf();
+        let bundled = exe_dir.join("tessdata");
+        if bundled.exists() {
+            Some(bundled.to_string_lossy().to_string())
+        } else {
+            None // let Tesseract find system tessdata on Linux
+        }
+    };
+
     let path = {
         let map = store.lock().unwrap();
         map.get(&image_id)
@@ -184,7 +196,6 @@ pub async fn process_region(
     };
 
     tokio::task::spawn_blocking(move || {
-        // Load and crop
         let img = ImageReader::open(&path)
             .map_err(|e| e.to_string())?
             .decode()
@@ -199,35 +210,32 @@ pub async fn process_region(
         let cropped = img.crop_imm(x, y, w, h);
         let processed = preprocess(&cropped);
 
-        // Save to temp PNG for Tesseract
         let tmp_path = std::env::temp_dir().join(format!("ocr_region_{}.png", region.id));
         processed.save(&tmp_path).map_err(|e| e.to_string())?;
 
-        // Init Tesseract — None uses bundled tessdata
-        let mut lt = LepTess::new(None, "eng").map_err(|e| e.to_string())?;
+        // Single LepTess::new call using the resolved tessdata path
+        let tessdata_ref = tessdata_path.as_deref();
+        let mut lt = LepTess::new(tessdata_ref, "eng").map_err(|e| e.to_string())?;
 
-        // Configure for sparse tabular data
         lt.set_variable(Variable::TesseditPagesegMode, "6")
-            .map_err(|e| e.to_string())?; // PSM 6: assume uniform block of text
+            .map_err(|e| e.to_string())?;
         lt.set_variable(Variable::TesseditCharWhitelist, "")
-            .map_err(|e| e.to_string())?; // allow all chars
+            .map_err(|e| e.to_string())?;
 
         lt.set_image(tmp_path.to_str().unwrap())
             .map_err(|e| e.to_string())?;
-        // Simpler: use Tesseract's TSV output which includes bbox + text per word
-        let tsv = lt.get_tsv_text(0).map_err(|e| e.to_string())?;
 
+        let tsv = lt.get_tsv_text(0).map_err(|e| e.to_string())?;
         let plain_text = lt.get_utf8_text().map_err(|e| e.to_string())?;
+
         let mut words: Vec<Word> = vec![];
         for line in tsv.lines().skip(1) {
             let cols: Vec<&str> = line.split('\t').collect();
-            // TSV format: level conf page block par line word left top width height conf text
             if cols.len() < 12 {
                 continue;
             }
             let level: i32 = cols[0].parse().unwrap_or(0);
             if level != 5 {
-                // level 5 = word
                 continue;
             }
             let left: f32 = cols[6].parse().unwrap_or(0.0);
@@ -249,7 +257,6 @@ pub async fn process_region(
             });
         }
 
-        // Cleanup temp file
         let _ = std::fs::remove_file(&tmp_path);
 
         let avg_height = if words.is_empty() {

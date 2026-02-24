@@ -50,6 +50,12 @@ jobs:
           Copy-Item $src.FullName "$libDir/tesseract.lib"
           Write-Host "Copied $($src.Name) to tesseract.lib"
 
+      - name: Download Tesseract language data
+        run: |
+          New-Item -ItemType Directory -Force -Path "src-tauri/tessdata"
+          Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata" `
+            -OutFile "src-tauri/tessdata/eng.traineddata"
+
       - name: Install frontend deps
         run: npm install
 
