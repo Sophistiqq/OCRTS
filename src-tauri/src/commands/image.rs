@@ -14,6 +14,7 @@ pub struct ImageFile {
     pub thumbnail: String, // base64 data URL
     pub width: u32,
     pub height: u32,
+    pub rotation: u32,
 }
 
 // In-memory store: image_id → file path (so OCR commands can find the file)
@@ -59,6 +60,7 @@ pub fn load_image(path: String, store: State<'_, ImageStore>) -> Result<ImageFil
         thumbnail,
         width,
         height,
+        rotation: 0,
     })
 }
 

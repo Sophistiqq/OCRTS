@@ -8,6 +8,7 @@
     addRegion,
     removeRegion,
     setRegions,
+    rotateImage,
   } from "../lib/stores/images";
   import { addCard } from "../lib/stores/results";
   import { processRegion } from "../lib/tauri";
@@ -56,7 +57,7 @@
 
     try {
       const results = await Promise.all(
-        regions.map((r) => processRegion(image.id, r)),
+        regions.map((r) => processRegion(image.id, r, image.rotation)),
       );
 
       const card: OutputCard = {
@@ -100,7 +101,23 @@
 
     <div class="progress">
       <span class="image-name">{image?.name ?? ""}</span>
-      <span class="counter">{index + 1} / {images.length}</span>
+      <div class="image-controls">
+        <button
+          class="icon-btn"
+          title="Rotate Counter-Clockwise"
+          on:click={() => rotateImage(image.id, -90)}
+        >
+          ↺
+        </button>
+        <span class="counter">{index + 1} / {images.length}</span>
+        <button
+          class="icon-btn"
+          title="Rotate Clockwise"
+          on:click={() => rotateImage(image.id, 90)}
+        >
+          ↻
+        </button>
+      </div>
     </div>
 
     <button
@@ -153,6 +170,7 @@
             imagePath={image.path}
             naturalWidth={image.width}
             naturalHeight={image.height}
+            rotation={image.rotation}
             {regions}
             {highlightedId}
             onAddRegion={handleAddRegion}
@@ -241,6 +259,24 @@
   .counter {
     font-size: 0.72rem;
     color: #666;
+  }
+  .image-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .icon-btn {
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 0.2rem;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .icon-btn:hover {
+    color: #7c9ef8;
   }
   .proceed-btn {
     background: #7c9ef8;

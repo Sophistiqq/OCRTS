@@ -5,6 +5,7 @@ export interface ImageFile {
   thumbnail: string; // base64 data URL
   width: number;
   height: number;
+  rotation: number;
 }
 
 export interface Region {

@@ -7,9 +7,13 @@ export async function loadImage(path: string): Promise<ImageFile> {
 
 export async function processRegion(
   imageId: string,
-  region: Region
+  region: Region,
+  rotation: number
 ): Promise<RegionResult> {
-  return invoke<RegionResult>('process_region', { imageId, region });
+  return invoke<RegionResult>("process_region", {
+    imageId,
+    region: { ...region, rotation },
+  });
 }
 
 export async function saveResults(

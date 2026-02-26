@@ -6,6 +6,7 @@
   export let imagePath: string; // real path, for coord scaling
   export let naturalWidth: number; // actual image pixel dimensions
   export let naturalHeight: number;
+  export let rotation: number = 0;
   export let regions: Region[];
   export let highlightedId: string | null = null;
 
@@ -38,7 +39,13 @@
     if (!container || !imgLoaded) return;
     const containerW = container.clientWidth;
     const containerH = container.clientHeight;
-    const imgRatio = naturalWidth / naturalHeight;
+
+    // Use visual dimensions for aspect ratio
+    const isVertical = rotation === 90 || rotation === 270;
+    const visualW = isVertical ? naturalHeight : naturalWidth;
+    const visualH = isVertical ? naturalWidth : naturalHeight;
+
+    const imgRatio = visualW / visualH;
     const containerRatio = containerW / containerH;
 
     if (imgRatio > containerRatio) {
@@ -52,8 +59,8 @@
     canvas.width = canvasW;
     canvas.height = canvasH;
 
-    scaleX = naturalWidth / canvasW;
-    scaleY = naturalHeight / canvasH;
+    scaleX = visualW / canvasW;
+    scaleY = visualH / canvasH;
 
     redraw();
   }
@@ -61,19 +68,84 @@
   function redraw() {
     if (!ctx || !imgLoaded) return;
     ctx.clearRect(0, 0, canvasW, canvasH);
-    ctx.drawImage(img, 0, 0, canvasW, canvasH);
+
+    ctx.save();
+    ctx.translate(canvasW / 2, canvasH / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+
+    const isVertical = rotation === 90 || rotation === 270;
+    const drawW = isVertical ? canvasH : canvasW;
+    const drawH = isVertical ? canvasW : canvasH;
+
+    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+    ctx.restore();
+
     drawRegions();
     if (drawState === "drawing") drawActiveRect();
+  }
+
+  function fromNatural(region: Region) {
+    let x, y, w, h;
+    if (rotation === 0) {
+      ({ x, y, width: w, height: h } = region);
+    } else if (rotation === 90) {
+      x = naturalHeight - region.y - region.height;
+      y = region.x;
+      w = region.height;
+      h = region.width;
+    } else if (rotation === 180) {
+      x = naturalWidth - region.x - region.width;
+      y = naturalHeight - region.y - region.height;
+      w = region.width;
+      h = region.height;
+    } else {
+      // 270
+      x = region.y;
+      y = naturalWidth - region.x - region.width;
+      w = region.height;
+      h = region.width;
+    }
+    return { x, y, w, h };
+  }
+
+  function toNatural(rect: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }): Region {
+    let x, y, w, h;
+    if (rotation === 0) {
+      ({ x, y, w, h } = rect);
+    } else if (rotation === 90) {
+      x = rect.y;
+      y = naturalHeight - rect.x - rect.w;
+      w = rect.h;
+      h = rect.w;
+    } else if (rotation === 180) {
+      x = naturalWidth - rect.x - rect.w;
+      y = naturalHeight - rect.y - rect.h;
+      w = rect.w;
+      h = rect.h;
+    } else {
+      // 270
+      x = naturalWidth - rect.y - rect.h;
+      y = rect.x;
+      w = rect.h;
+      h = rect.w;
+    }
+    return { id: crypto.randomUUID(), x, y, width: w, height: h };
   }
 
   function drawRegions() {
     for (const region of regions) {
       const isHighlighted = region.id === highlightedId;
       // Convert real coords back to canvas coords
-      const rx = region.x / scaleX;
-      const ry = region.y / scaleY;
-      const rw = region.width / scaleX;
-      const rh = region.height / scaleY;
+      const visual = fromNatural(region);
+      const rx = visual.x / scaleX;
+      const ry = visual.y / scaleY;
+      const rw = visual.w / scaleX;
+      const rh = visual.h / scaleY;
 
       ctx.save();
       ctx.strokeStyle = isHighlighted ? "#f8c97c" : "#7c9ef8";
@@ -151,13 +223,12 @@
     }
 
     // Convert canvas coords → real image coords
-    const region: Region = {
-      id: crypto.randomUUID(),
+    const region = toNatural({
       x: Math.round(x * scaleX),
       y: Math.round(y * scaleY),
-      width: Math.round(w * scaleX),
-      height: Math.round(h * scaleY),
-    };
+      w: Math.round(w * scaleX),
+      h: Math.round(h * scaleY),
+    });
 
     onAddRegion(region);
     redraw();
@@ -170,9 +241,10 @@
     }
   }
 
-  // Reactive: redraw whenever regions or highlight changes
+  // Reactive: redraw whenever regions, rotation or highlight changes
   $: if (ctx && imgLoaded) {
-    redraw();
+    rotation; // dummy access to ensure dependency
+    computeLayout(); // rotation changes layout
   }
   $: highlightedId, imgLoaded && redraw();
   let loadError: string | null = null;

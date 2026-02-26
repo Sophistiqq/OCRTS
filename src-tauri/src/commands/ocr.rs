@@ -11,6 +11,7 @@ pub struct RegionInput {
     pub y: u32,
     pub width: u32,
     pub height: u32,
+    pub rotation: u32,
     #[allow(dead_code)]
     pub label: Option<String>,
 }
@@ -219,16 +220,49 @@ pub async fn process_region(
     };
 
     tokio::task::spawn_blocking(move || {
-        let img = ImageReader::open(&path)
+        let mut img = ImageReader::open(&path)
             .map_err(|e| e.to_string())?
             .decode()
             .map_err(|e| e.to_string())?;
 
         let (img_w, img_h) = img.dimensions();
-        let x = region.x.min(img_w.saturating_sub(1));
-        let y = region.y.min(img_h.saturating_sub(1));
-        let w = region.width.min(img_w - x);
-        let h = region.height.min(img_h - y);
+
+        let (final_x, final_y, final_w, final_h) = match region.rotation {
+            90 => {
+                img = img.rotate90();
+                (
+                    img_h.saturating_sub(region.y).saturating_sub(region.height),
+                    region.x,
+                    region.height,
+                    region.width,
+                )
+            }
+            180 => {
+                img = img.rotate180();
+                (
+                    img_w.saturating_sub(region.x).saturating_sub(region.width),
+                    img_h.saturating_sub(region.y).saturating_sub(region.height),
+                    region.width,
+                    region.height,
+                )
+            }
+            270 => {
+                img = img.rotate270();
+                (
+                    region.y,
+                    img_w.saturating_sub(region.x).saturating_sub(region.width),
+                    region.height,
+                    region.width,
+                )
+            }
+            _ => (region.x, region.y, region.width, region.height),
+        };
+
+        let (cur_w, cur_h) = img.dimensions();
+        let x = final_x.min(cur_w.saturating_sub(1));
+        let y = final_y.min(cur_h.saturating_sub(1));
+        let w = final_w.min(cur_w - x);
+        let h = final_h.min(cur_h - y);
 
         let cropped = img.crop_imm(x, y, w, h);
         let processed = preprocess(&cropped);

@@ -61,3 +61,11 @@ export function removeRegion(imageId: string, regionId: string) {
     [imageId]: (m[imageId] ?? []).filter((r) => r.id !== regionId),
   }));
 }
+
+export function rotateImage(id: string, delta: number) {
+  imageQueue.update((q) =>
+    q.map((i) =>
+      i.id === id ? { ...i, rotation: (i.rotation + delta + 360) % 360 } : i
+    )
+  );
+}
