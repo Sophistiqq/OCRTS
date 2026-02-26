@@ -5,6 +5,7 @@
   export let onRemove: (id: string) => void;
   export let onLabelChange: (id: string, label: string) => void;
   export let onHighlight: (id: string | null) => void;
+  export let onNumericToggle: (id: string, val: boolean) => void;
 </script>
 
 <div class="panel">
@@ -29,6 +30,14 @@
             on:input={(e) =>
               onLabelChange(region.id, (e.target as HTMLInputElement).value)}
           />
+          <button
+            class="numeric-toggle"
+            class:active={region.is_numeric}
+            on:click={() => onNumericToggle(region.id, !region.is_numeric)}
+            title="Numbers Only Mode"
+          >
+            123
+          </button>
           <button
             class="remove"
             on:click={() => onRemove(region.id)}
@@ -104,6 +113,22 @@
   }
   .label-input::placeholder {
     color: #444;
+  }
+  .numeric-toggle {
+    background: #2a2a2a;
+    border: 1px solid #333;
+    color: #666;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .numeric-toggle.active {
+    background: rgba(124, 158, 248, 0.2);
+    border-color: #7c9ef8;
+    color: #7c9ef8;
   }
   .remove {
     background: none;

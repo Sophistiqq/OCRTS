@@ -69,3 +69,11 @@ export function rotateImage(id: string, delta: number) {
     )
   );
 }
+
+export function updateProcessingSettings(id: string, blur: number, threshold: number) {
+  imageQueue.update((q) =>
+    q.map((i) =>
+      i.id === id ? { ...i, processing: { blur, threshold } } : i
+    )
+  );
+}

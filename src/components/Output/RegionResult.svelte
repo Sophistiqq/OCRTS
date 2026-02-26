@@ -1,127 +1,148 @@
 <script lang="ts">
-  import type { RegionResult } from "../../lib/types";
+  import type { RegionResult, OcrCell } from "../../lib/types";
+  import { outputCards } from "../../lib/stores/results";
 
   export let result: RegionResult;
-  export let index: number;
+  export let cardId: string;
 
-  $: hasColumns =
-    result.columns.length > 0 && result.columns.some((row) => row.length > 1);
-  $: columnCount = hasColumns
-    ? Math.max(...result.columns.map((r) => r.length))
-    : 0;
+  function handleInput(cell: OcrCell) {
+    if (!cell.manual) {
+      cell.manual = true;
+      // Trigger a local re-render to update the background color
+      result = result;
+    }
+  }
 
-  let copied = false;
+  function handleBlur() {
+    // Final sync to store when focus is lost. 
+    // This allows the browser to keep its own undo/redo history while focused.
+    outputCards.update(cards => [...cards]);
+  }
 
-  function copyText() {
-    navigator.clipboard.writeText(result.text);
-    copied = true;
-    setTimeout(() => (copied = false), 1500);
+  function getCellColor(cell: OcrCell) {
+    if (cell.manual) return "rgba(124, 158, 248, 0.25)"; 
+    
+    const conf = cell.confidence;
+    if (conf >= 90) return "transparent";
+    if (conf >= 75) return "rgba(248, 201, 124, 0.2)";
+    if (conf >= 50) return "rgba(248, 150, 76, 0.25)"; 
+    return "rgba(248, 124, 124, 0.3)";
   }
 </script>
 
-<div class="region">
-  <div class="region-header">
-    <span class="region-label">
-      #{index + 1}{result.regionId ? "" : ""}
-    </span>
-    <button class="copy-btn" on:click={copyText}>
-      {copied ? "✓ Copied" : "Copy"}
-    </button>
-  </div>
-
-  {#if hasColumns}
-    <div class="table-wrap">
-      <table>
-        {#each result.columns as row}
-          <!-- svelte-ignore node_invalid_placement_ssr -->
+<div class="region-result">
+  <div class="table-container">
+    <table>
+      <tbody>
+        {#each result.columns as row, rowIndex}
           <tr>
-            {#each Array(columnCount) as _, ci}
-              <td>{row[ci] ?? ""}</td>
+            {#each row as cell, colIndex}
+              <td style="background: {getCellColor(cell)}">
+                <div class="cell-wrapper">
+                  <input
+                    type="text"
+                    bind:value={cell.text}
+                    on:input={() => handleInput(cell)}
+                    on:blur={handleBlur}
+                    class:low-conf={cell.confidence < 75 && !cell.manual}
+                    class:edited={cell.manual}
+                  />
+                  {#if cell.manual && cell.text !== cell.originalText}
+                    <div class="original-tooltip">
+                      <span class="tooltip-label">Before:</span>
+                      <span class="tooltip-value">{cell.originalText || '(empty)'}</span>
+                    </div>
+                  {/if}
+                </div>
+              </td>
             {/each}
           </tr>
         {/each}
-      </table>
-    </div>
-  {:else if result.text.trim()}
-    <pre class="plain-text">{result.text.trim()}</pre>
-  {:else}
-    <p class="empty">No text detected in this region.</p>
-  {/if}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <style>
-  .region {
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    overflow: hidden;
+  .region-result {
+    margin-top: 0.5rem;
   }
-  .region-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.4rem 0.75rem;
-    background: #1a1a1a;
-    border-bottom: 1px solid #2a2a2a;
-  }
-  .region-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #7c9ef8;
-  }
-  .copy-btn {
-    background: none;
-    border: 1px solid #333;
-    color: #888;
-    font-size: 0.72rem;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    cursor: pointer;
-    transition:
-      color 0.1s,
-      border-color 0.1s;
-  }
-  .copy-btn:hover {
-    color: #ddd;
-    border-color: #555;
-  }
-
-  /* Table */
-  .table-wrap {
+  .table-container {
     overflow-x: auto;
-    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #333;
   }
   table {
-    border-collapse: collapse;
     width: 100%;
-    font-size: 0.82rem;
+    border-collapse: collapse;
+    font-size: 0.85rem;
   }
   td {
+    border: 1px solid #222;
+    padding: 0;
+    transition: background 0.2s;
+    position: relative;
+  }
+  .cell-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: #ddd;
+    padding: 0.4rem 0.6rem;
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+    min-width: 100px;
+    display: block;
+    box-sizing: border-box;
+  }
+  input:focus {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Original value tooltip on hover */
+  .original-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: #222;
+    color: #fff;
     padding: 0.3rem 0.6rem;
-    border: 1px solid #2a2a2a;
-    color: #ccc;
+    border-radius: 4px;
+    font-size: 0.7rem;
     white-space: nowrap;
-    vertical-align: top;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    z-index: 100;
+    border: 1px solid #444;
   }
-  tr:nth-child(even) td {
-    background: #111;
+  .cell-wrapper:hover .original-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-8px);
+  }
+  .tooltip-label {
+    color: #888;
+    margin-right: 0.4rem;
+    font-weight: 600;
+  }
+  .tooltip-value {
+    color: #f8c97c;
+    font-family: monospace;
   }
 
-  /* Plain text */
-  .plain-text {
-    margin: 0;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.82rem;
-    color: #ccc;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: "Courier New", monospace;
-    line-height: 1.5;
+  input.low-conf {
+    color: #fff;
   }
-
-  .empty {
-    margin: 0;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.8rem;
-    color: #555;
+  input.edited {
+    color: #7c9ef8;
+    font-weight: 600;
   }
 </style>

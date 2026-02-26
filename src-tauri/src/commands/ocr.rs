@@ -12,8 +12,17 @@ pub struct RegionInput {
     pub width: u32,
     pub height: u32,
     pub rotation: u32,
+    pub is_numeric: Option<bool>,
     #[allow(dead_code)]
     pub label: Option<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct OcrCell {
+    pub text: String,
+    pub confidence: f32,
+    #[serde(rename = "originalText")]
+    pub original_text: String,
 }
 
 #[derive(Serialize)]
@@ -21,23 +30,56 @@ pub struct RegionResult {
     #[serde(rename = "regionId")]
     pub region_id: String,
     pub text: String,
-    pub columns: Vec<Vec<String>>,
+    pub columns: Vec<Vec<OcrCell>>,
 }
 
-fn preprocess(img: &DynamicImage) -> DynamicImage {
+fn preprocess(img: &DynamicImage, blur: f32, threshold: i32) -> DynamicImage {
     let (w, h) = img.dimensions();
 
-    // Scale up if too small — Tesseract works best at 300 DPI equivalent
-    // For phone photos, aim for at least 1000px tall
+    // 1. Scale up if too small — Tesseract works best at 300 DPI equivalent
     let scale = if h < 1000 { 1000.0 / h as f32 } else { 1.0 };
 
-    if scale > 1.0 {
+    let img_scaled = if scale > 1.0 {
         let nw = (w as f32 * scale) as u32;
         let nh = (h as f32 * scale) as u32;
         img.resize(nw, nh, FilterType::Lanczos3)
     } else {
         img.clone()
+    };
+
+    // If no processing requested, return the scaled image as-is
+    if blur <= 0.0 && threshold == -2 {
+        return img_scaled;
     }
+
+    // 2. Convert to grayscale
+    let mut gray = img_scaled.to_luma8();
+
+    // 3. Denoising: Median Filter (Great for "salt and pepper" noise/dirt)
+    // This helps remove small dots/dirt without blurring text edges as much as Gaussian
+    gray = imageproc::filter::median_filter(&gray, 1, 1);
+
+    // 4. Gaussian Blur (Optional, very light)
+    if blur > 0.0 {
+        gray = imageproc::filter::gaussian_blur_f32(&gray, blur);
+    }
+
+    // 5. Binarization
+    if threshold == -1 {
+        // Otsu is global and fails with uneven lighting/dirt
+        // Let's use it as a fallback or keep it for now
+        let level = imageproc::contrast::otsu_level(&gray);
+        imageproc::contrast::threshold_mut(&mut gray, level, imageproc::contrast::ThresholdType::Binary);
+    } else if threshold == -3 {
+        // -3 for Adaptive Thresholding (New)
+        // This is much better for paper with shadows or dirt
+        gray = imageproc::contrast::adaptive_threshold(&gray, 15);
+    } else if threshold != -2 {
+        let level = threshold as u8;
+        imageproc::contrast::threshold_mut(&mut gray, level, imageproc::contrast::ThresholdType::Binary);
+    }
+
+    DynamicImage::ImageLuma8(gray)
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +89,7 @@ struct Word {
     y: f32,
     right: f32,
     bottom: f32,
+    confidence: f32,
 }
 
 fn group_into_rows(words: &[Word], threshold: f32) -> Vec<Vec<Word>> {
@@ -133,19 +176,28 @@ fn detect_column_splits(rows: &[Vec<Word>], gap_threshold: f32) -> Vec<f32> {
     splits
 }
 
-fn assign_to_columns(row: &[Word], splits: &[f32], num_cols: usize) -> Vec<String> {
-    let mut cells: Vec<Vec<&str>> = vec![vec![]; num_cols];
+fn assign_to_columns(row: &[Word], splits: &[f32], num_cols: usize) -> Vec<OcrCell> {
+    let mut cells: Vec<Vec<&Word>> = vec![vec![]; num_cols];
     for word in row {
         let word_center_x = (word.x + word.right) / 2.0;
         let col_idx = splits
             .partition_point(|&split| word_center_x > split)
             .min(num_cols - 1);
-        cells[col_idx].push(&word.text);
+        cells[col_idx].push(word);
     }
-    cells.iter().map(|c| c.join(" ")).collect()
+    
+    cells.iter().map(|c| {
+        if c.is_empty() {
+            OcrCell { text: "".to_string(), confidence: 100.0, original_text: "".to_string() }
+        } else {
+            let text = c.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+            let avg_conf = c.iter().map(|w| w.confidence).sum::<f32>() / c.len() as f32;
+            OcrCell { text: text.clone(), confidence: avg_conf, original_text: text }
+        }
+    }).collect()
 }
 
-fn build_grid(words: Vec<Word>, row_threshold: f32, gap_threshold: f32) -> Vec<Vec<String>> {
+fn build_grid(words: Vec<Word>, row_threshold: f32, gap_threshold: f32) -> Vec<Vec<OcrCell>> {
     let rows = group_into_rows(&words, row_threshold);
     if rows.is_empty() {
         return vec![];
@@ -156,11 +208,9 @@ fn build_grid(words: Vec<Word>, row_threshold: f32, gap_threshold: f32) -> Vec<V
         return rows
             .iter()
             .map(|row| {
-                vec![row
-                    .iter()
-                    .map(|w| w.text.clone())
-                    .collect::<Vec<_>>()
-                    .join(" ")]
+                let text = row.iter().map(|w| w.text.clone()).collect::<Vec<_>>().join(" ");
+                let avg_conf = if row.is_empty() { 100.0 } else { row.iter().map(|w| w.confidence).sum::<f32>() / row.len() as f32 };
+                vec![OcrCell { text: text.clone(), confidence: avg_conf, original_text: text }]
             })
             .collect();
     }
@@ -175,6 +225,8 @@ fn build_grid(words: Vec<Word>, row_threshold: f32, gap_threshold: f32) -> Vec<V
 pub async fn process_region(
     image_id: String,
     region: RegionInput,
+    blur: f32,
+    threshold: i32,
     store: State<'_, ImageStore>,
 ) -> Result<RegionResult, String> {
     // Resolve tessdata path before entering the blocking thread
@@ -265,7 +317,7 @@ pub async fn process_region(
         let h = final_h.min(cur_h - y);
 
         let cropped = img.crop_imm(x, y, w, h);
-        let processed = preprocess(&cropped);
+        let processed = preprocess(&cropped, blur, threshold);
 
         let tmp_path = std::env::temp_dir().join(format!("ocr_region_{}.png", region.id));
         processed.save(&tmp_path).map_err(|e| e.to_string())?;
@@ -276,8 +328,14 @@ pub async fn process_region(
 
         lt.set_variable(Variable::TesseditPagesegMode, "6")
             .map_err(|e| e.to_string())?;
-        lt.set_variable(Variable::TesseditCharWhitelist, "")
-            .map_err(|e| e.to_string())?;
+
+        if region.is_numeric.unwrap_or(false) {
+            lt.set_variable(Variable::TesseditCharWhitelist, "0123456789.")
+                .map_err(|e| e.to_string())?;
+        } else {
+            lt.set_variable(Variable::TesseditCharWhitelist, "")
+                .map_err(|e| e.to_string())?;
+        }
 
         lt.set_image(tmp_path.to_str().unwrap())
             .map_err(|e| e.to_string())?;
@@ -299,6 +357,7 @@ pub async fn process_region(
             let top: f32 = cols[7].parse().unwrap_or(0.0);
             let width: f32 = cols[8].parse().unwrap_or(0.0);
             let height: f32 = cols[9].parse().unwrap_or(0.0);
+            let confidence: f32 = cols[10].parse().unwrap_or(0.0);
             let text = cols[11].trim().to_string();
 
             if text.is_empty() || text == "-1" {
@@ -311,6 +370,7 @@ pub async fn process_region(
                 y: top,
                 right: left + width,
                 bottom: top + height,
+                confidence,
             });
         }
 

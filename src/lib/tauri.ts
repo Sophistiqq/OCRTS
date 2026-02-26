@@ -8,11 +8,15 @@ export async function loadImage(path: string): Promise<ImageFile> {
 export async function processRegion(
   imageId: string,
   region: Region,
-  rotation: number
+  rotation: number,
+  blur: number = 0,
+  threshold: number = -2
 ): Promise<RegionResult> {
   return invoke<RegionResult>("process_region", {
     imageId,
     region: { ...region, rotation },
+    blur,
+    threshold
   });
 }
 
@@ -25,4 +29,12 @@ export async function saveResults(
 
 export async function loadImageFull(path: string): Promise<string> {
   return invoke<string>('load_image_full', { path });
+}
+
+export async function preprocessImage(
+  path: string,
+  blur: number,
+  threshold: number
+): Promise<string> {
+  return invoke<string>('preprocess_image', { path, blur, threshold });
 }

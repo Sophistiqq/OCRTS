@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Region } from "../../lib/types";
-  import { loadImageFull } from "../../lib/tauri"; // add this import
+  import type { Region, ProcessingSettings } from "../../lib/types";
+  import { loadImageFull, preprocessImage } from "../../lib/tauri"; // add this import
 
   export let imagePath: string; // real path, for coord scaling
   export let naturalWidth: number; // actual image pixel dimensions
@@ -9,6 +9,7 @@
   export let rotation: number = 0;
   export let regions: Region[];
   export let highlightedId: string | null = null;
+  export let processing: ProcessingSettings | undefined = undefined;
 
   export let onAddRegion: (r: Region) => void;
   export let onRemoveRegion: (id: string) => void;
@@ -241,6 +242,25 @@
     }
   }
 
+  async function loadSource() {
+    if (!imagePath) return;
+    try {
+      let src;
+      if (processing) {
+        src = await preprocessImage(imagePath, processing.blur, processing.threshold);
+      } else {
+        src = await loadImageFull(imagePath);
+      }
+      img.src = src;
+    } catch (e) {
+      loadError = String(e);
+    }
+  }
+
+  $: if (img && imagePath) {
+    loadSource();
+  }
+
   // Reactive: redraw whenever regions, rotation or highlight changes
   $: if (ctx && imgLoaded) {
     rotation; // dummy access to ensure dependency
@@ -259,15 +279,6 @@
     img.onerror = () => {
       loadError = "Failed to load image";
     };
-
-    // Fetch full resolution image from Rust
-    loadImageFull(imagePath)
-      .then((src) => {
-        img.src = src;
-      })
-      .catch((e) => {
-        loadError = String(e);
-      });
 
     const ro = new ResizeObserver(() => computeLayout());
     ro.observe(container);

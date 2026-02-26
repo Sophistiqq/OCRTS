@@ -1,3 +1,8 @@
+export interface ProcessingSettings {
+  blur: number;
+  threshold: number; // -1: Otsu, 0-255: Fixed, -2: Disabled
+}
+
 export interface ImageFile {
   id: string;
   name: string;
@@ -6,6 +11,7 @@ export interface ImageFile {
   width: number;
   height: number;
   rotation: number;
+  processing?: ProcessingSettings;
 }
 
 export interface Region {
@@ -15,12 +21,20 @@ export interface Region {
   width: number;
   height: number;
   label?: string;
+  is_numeric?: boolean;
+}
+
+export interface OcrCell {
+  text: string;
+  originalText: string;
+  confidence: number;
+  manual?: boolean;
 }
 
 export interface RegionResult {
   regionId: string;
   text: string;
-  columns: string[][];
+  columns: OcrCell[][];
 }
 
 export interface OutputCard {

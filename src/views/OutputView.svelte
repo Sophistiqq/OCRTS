@@ -7,11 +7,24 @@
   export let onBack: () => void;
 
   function startOver() {
-    clearResults();
-    imageQueue.set([]);
-    regionMap.set({});
-    currentIndex.set(0);
-    onBack();
+    if (confirm("Clear all results and start over?")) {
+      clearResults();
+      imageQueue.set([]);
+      regionMap.set({});
+      currentIndex.set(0);
+      onBack();
+    }
+  }
+
+  function copyAll() {
+    const text = $outputCards
+      .map(card => 
+        card.imageName + "\n" +
+        card.results.map(r => 
+          r.columns.map(row => row.map(c => c.text).join("\t")).join("\n")
+        ).join("\n")
+      ).join("\n\n---\n\n");
+    navigator.clipboard.writeText(text);
   }
 
   async function saveAsText() {
@@ -19,25 +32,16 @@
       filters: [{ name: "Text", extensions: ["txt"] }],
       defaultPath: "ocr-results.txt",
     });
-    if (!path) return; // user cancelled
+    if (!path) return;
 
     const lines: string[] = [];
     for (const card of $outputCards) {
       lines.push(`=== ${card.imageName} ===`);
-      for (let i = 0; i < card.results.length; i++) {
-        const r = card.results[i];
-        lines.push(`\n[Region ${i + 1}]`);
-        const hasColumns =
-          r.columns.length > 0 && r.columns.some((row) => row.length > 1);
-        if (hasColumns) {
-          lines.push(r.columns.map((row) => row.join("\t")).join("\n"));
-        } else {
-          lines.push(r.text.trim());
-        }
+      for (const r of card.results) {
+        lines.push(r.columns.map(row => row.map(c => c.text).join("\t")).join("\n"));
+        lines.push("");
       }
-      lines.push("");
     }
-
     await writeTextFile(path, lines.join("\n"));
   }
 
@@ -46,54 +50,46 @@
       filters: [{ name: "CSV", extensions: ["csv"] }],
       defaultPath: "ocr-results.csv",
     });
-    if (!path) return; // user cancelled
+    if (!path) return;
 
     const lines: string[] = [];
     for (const card of $outputCards) {
-      lines.push(`"${card.imageName}"`);
-      for (let i = 0; i < card.results.length; i++) {
-        const r = card.results[i];
-        lines.push(`Region ${i + 1}`);
-        const hasColumns =
-          r.columns.length > 0 && r.columns.some((row) => row.length > 1);
-        if (hasColumns) {
-          for (const row of r.columns) {
-            lines.push(
-              row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","),
-            );
-          }
-        } else {
-          lines.push(`"${r.text.trim().replace(/"/g, '""')}"`);
+      for (const r of card.results) {
+        for (const row of r.columns) {
+          lines.push(row.map(cell => `"${cell.text.replace(/"/g, '""')}"`).join(","));
         }
-        lines.push("");
       }
     }
-
     await writeTextFile(path, lines.join("\n"));
   }
 </script>
 
 <div class="view">
   <header class="topbar">
-    <button class="nav-btn" on:click={startOver}>← Start Over</button>
-    <span class="title">Results</span>
-    <div class="actions">
-      <button class="action-btn" on:click={saveAsText}>Save .txt</button>
-      <button class="action-btn" on:click={saveAsCsv}>Save .csv</button>
-    </div>
+    <button class="nav-btn" on:click={onBack}>← Back to Editor</button>
+    <span class="title">Extraction Results</span>
+    <button class="copy-all-btn" on:click={copyAll}>Copy All Results</button>
   </header>
 
   <main class="content">
     {#if $outputCards.length === 0}
       <div class="empty-state">
         <p>No results yet.</p>
-        <button class="nav-btn" on:click={startOver}>← Go back</button>
+        <button class="nav-btn" on:click={onBack}>← Go back</button>
       </div>
     {:else}
       <div class="cards">
         {#each $outputCards as card (card.imageId)}
           <ResultCard {card} />
         {/each}
+        
+        <div class="footer-actions">
+          <button class="secondary-btn" on:click={startOver}>Start Over</button>
+          <div class="export-group">
+            <button class="secondary-btn" on:click={saveAsText}>Export .txt</button>
+            <button class="secondary-btn" on:click={saveAsCsv}>Export .csv</button>
+          </div>
+        </div>
       </div>
     {/if}
   </main>
@@ -133,33 +129,16 @@
     cursor: pointer;
     font-size: 0.85rem;
     white-space: nowrap;
-    transition:
-      border-color 0.15s,
-      color 0.15s;
   }
-  .nav-btn:hover {
-    border-color: #555;
-    color: #ddd;
-  }
-  .actions {
-    display: flex;
-    gap: 0.5rem;
-  }
-  .action-btn {
-    background: none;
-    border: 1px solid #333;
-    color: #aaa;
-    padding: 0.4rem 0.75rem;
+  .copy-all-btn {
+    background: #7c9ef8;
+    color: #000;
+    border: none;
+    padding: 0.4rem 1rem;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.82rem;
-    transition:
-      border-color 0.15s,
-      color 0.15s;
-  }
-  .action-btn:hover {
-    border-color: #7c9ef8;
-    color: #7c9ef8;
+    font-size: 0.85rem;
+    font-weight: 600;
   }
   .content {
     flex: 1;
@@ -169,9 +148,35 @@
   .cards {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
     max-width: 860px;
     margin: 0 auto;
+    padding-bottom: 3rem;
+  }
+  .footer-actions {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #222;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .export-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .secondary-btn {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #888;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .secondary-btn:hover {
+    border-color: #444;
+    color: #ddd;
   }
   .empty-state {
     display: flex;

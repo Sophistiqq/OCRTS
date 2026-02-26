@@ -65,6 +65,71 @@ pub fn load_image(path: String, store: State<'_, ImageStore>) -> Result<ImageFil
 }
 
 #[tauri::command]
+pub async fn preprocess_image(
+    path: String,
+    blur: f32,
+    threshold: i32, // -1 for Otsu, 0-255 for fixed
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let img = ImageReader::open(&path)
+            .map_err(|e| e.to_string())?
+            .decode()
+            .map_err(|e| e.to_string())?;
+
+        let processed_img = if blur <= 0.0 && threshold == -2 {
+            img
+        } else {
+            let mut gray = img.to_luma8();
+            
+            // Denoising
+            gray = imageproc::filter::median_filter(&gray, 1, 1);
+
+            if blur > 0.0 {
+                gray = imageproc::filter::gaussian_blur_f32(&gray, blur);
+            }
+
+            if threshold == -1 {
+                let level = imageproc::contrast::otsu_level(&gray);
+                imageproc::contrast::threshold_mut(
+                    &mut gray,
+                    level,
+                    imageproc::contrast::ThresholdType::Binary,
+                );
+            } else if threshold == -3 {
+                gray = imageproc::contrast::adaptive_threshold(&gray, 15);
+            } else if threshold != -2 {
+                let level = threshold as u8;
+                imageproc::contrast::threshold_mut(
+                    &mut gray,
+                    level,
+                    imageproc::contrast::ThresholdType::Binary,
+                );
+            }
+            image::DynamicImage::ImageLuma8(gray)
+        };
+
+        let mut bytes: Vec<u8> = Vec::new();
+        
+        // Thumbnail for preview performance
+        let preview = processed_img.thumbnail(1200, 1200);
+
+        preview
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .map_err(|e| e.to_string())?;
+
+        Ok(format!(
+            "data:image/png;base64,{}",
+            general_purpose::STANDARD.encode(&bytes)
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub fn load_image_full(path: String) -> Result<String, String> {
     let img = ImageReader::open(&path)
         .map_err(|e| e.to_string())?

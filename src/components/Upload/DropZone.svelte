@@ -38,7 +38,8 @@
     e.preventDefault();
     dragging = false;
     const files = Array.from(e.dataTransfer?.files ?? []);
-    const paths = files.map((f) => f.path).filter(Boolean);
+    // @ts-ignore - Tauri adds path to File objects in some contexts, but not always via standard types
+    const paths = files.map((f: any) => f.path).filter(Boolean);
     if (paths.length) await handleFiles(paths);
   }
 </script>

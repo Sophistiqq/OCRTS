@@ -43,6 +43,12 @@
     setRegions(image.id, updated);
   }
 
+  function handleNumericToggle(id: string, is_numeric: boolean) {
+    if (!image) return;
+    const updated = regions.map((r) => (r.id === id ? { ...r, is_numeric } : r));
+    setRegions(image.id, updated);
+  }
+
   async function processCurrentAndAdvance() {
     if (!image || regions.length === 0) {
       advance();
@@ -57,7 +63,15 @@
 
     try {
       const results = await Promise.all(
-        regions.map((r) => processRegion(image.id, r, image.rotation)),
+        regions.map((r) =>
+          processRegion(
+            image.id,
+            r,
+            image.rotation,
+            image.processing?.blur ?? 0,
+            image.processing?.threshold ?? -2,
+          ),
+        ),
       );
 
       const card: OutputCard = {
@@ -101,23 +115,7 @@
 
     <div class="progress">
       <span class="image-name">{image?.name ?? ""}</span>
-      <div class="image-controls">
-        <button
-          class="icon-btn"
-          title="Rotate Counter-Clockwise"
-          on:click={() => rotateImage(image.id, -90)}
-        >
-          ↺
-        </button>
-        <span class="counter">{index + 1} / {images.length}</span>
-        <button
-          class="icon-btn"
-          title="Rotate Clockwise"
-          on:click={() => rotateImage(image.id, 90)}
-        >
-          ↻
-        </button>
-      </div>
+      <span class="counter">{index + 1} / {images.length}</span>
     </div>
 
     <button
@@ -171,6 +169,7 @@
             naturalWidth={image.width}
             naturalHeight={image.height}
             rotation={image.rotation}
+            processing={image.processing}
             {regions}
             {highlightedId}
             onAddRegion={handleAddRegion}
@@ -185,6 +184,7 @@
         {regions}
         onRemove={handleRemoveRegion}
         onLabelChange={handleLabelChange}
+        onNumericToggle={handleNumericToggle}
         onHighlight={(id) => (highlightedId = id)}
       />
     </aside>

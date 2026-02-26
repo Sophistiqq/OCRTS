@@ -3,7 +3,7 @@
 
 mod commands;
 
-use commands::image::{load_image, load_image_full};
+use commands::image::{load_image, load_image_full, preprocess_image};
 use commands::ocr::process_region;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -17,6 +17,7 @@ fn main() {
             load_image,
             load_image_full,
             process_region,
+            preprocess_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
