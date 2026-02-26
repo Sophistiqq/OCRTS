@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/Sophistiqq/OCRTS/compare/v1.1.0...v1.2.0) (2026-02-26)
+
+
+### Features
+
+* add image processing layer and editable OCR results with confidence highlighting ([93b6f6e](https://github.com/Sophistiqq/OCRTS/commit/93b6f6eec0f0eda4721ec25fc8906ec1f5939dd2))
+
 # [1.1.0](https://github.com/Sophistiqq/OCRTS/compare/v1.0.0...v1.1.0) (2026-02-26)
 
 
