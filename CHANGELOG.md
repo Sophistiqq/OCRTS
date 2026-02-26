@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/Sophistiqq/OCRTS/compare/v1.0.0...v1.1.0) (2026-02-26)
+
+
+### Features
+
+* add rotate image at editorView ([f45ae86](https://github.com/Sophistiqq/OCRTS/commit/f45ae8631d56df7e0b136648cb09c1122cff24a3))
+
 # 1.0.0 (2026-02-24)
 
 
